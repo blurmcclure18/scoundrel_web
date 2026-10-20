@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Scoundrel - A Roguelike Card Game</title>
+  
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Scoundrel">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    const manifestJson = {
+      name: "Scoundrel Card Game",
+      short_name: "Scoundrel",
+      start_url: "./",
+      display: "standalone",
+      background_color: "#020617",
+      theme_color: "#020617",
+      icons: [
+        {
+          src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23020617'/><text y='.9em' font-size='90'>🗡️</text></svg>",
+          sizes: "192x192 512x512",
+          type: "image/svg+xml",
+          purpose: "any maskable"
+        }
+      ]
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifestJson)], { type: 'application/json' });
+    const manifestURL = URL.createObjectURL(manifestBlob);
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = manifestURL;
+    document.head.appendChild(link);
+  </script>
+
+  <style>
+    .card-transition { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+    .btn-press:active { transform: scale(0.96); }
+    body { user-select: none; -webkit-user-select: none; }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased overflow-x-hidden selection:bg-amber-500 selection:text-slate-950">
+
+  <header class="w-full max-w-2xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between border-b border-slate-800/80">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">🗡️</span>
+      <h1 class="text-xl font-bold tracking-wider text-amber-500 uppercase">Scoundrel</h1>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <button id="btn-sound" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 btn-press transition" aria-label="Toggle Sound">
+        <svg id="icon-sound-on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"/></svg>
+        <svg id="icon-sound-off" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" stroke-dasharray="2 2"/></svg>
+      </button>
+
+      <button id="btn-restart" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 btn-press transition" aria-label="Restart Game">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full max-w-2xl mx-auto px-4 py-3 flex flex-col justify-between space-y-4">
+    
+    <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg space-y-3">
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <span class="flex items-center space-x-1.5">
+          <span>❤️</span>
+          <span>Health Points</span>
+        </span>
+        <span id="hp-text" class="text-sm font-bold text-slate-200">20 / 20</span>
+      </div>
+      
+      <div class="w-full bg-slate-950 rounded-full h-3.5 overflow-hidden border border-slate-800">
+        <div id="hp-bar" class="bg-gradient-to-r from-red-600 to-emerald-500 h-full w-full transition-all duration-300"></div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
+        <div class="flex flex-col justify-center bg-slate-950/60 rounded-lg p-2 border border-slate-800/80">
+          <span class="text-[10px] uppercase font-medium text-slate-500">Equipped Weapon</span>
+          <div id="equipped-weapon" class="text-sm font-bold text-amber-400 truncate">Barehanded</div>
+        </div>
+
+        <div class="flex flex-col justify-center bg-slate-950/60 rounded-lg p-2 border border-slate-800/80">
+          <span class="text-[10px] uppercase font-medium text-slate-500">Durability Limit</span>
+          <div id="weapon-limit" class="text-sm font-bold text-slate-300">Full Damage</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 text-center pt-1 text-xs">
+        <div class="bg-slate-950/40 rounded p-1.5">
+          <div class="text-[10px] text-slate-500 uppercase">Deck Left</div>
+          <div id="deck-count" class="font-bold text-amber-500">44</div>
+        </div>
+        <div class="bg-slate-950/40 rounded p-1.5">
+          <div class="text-[10px] text-slate-500 uppercase">Slain / Cleared</div>
+          <div id="slain-count" class="font-bold text-slate-300">0</div>
+        </div>
+        <div class="bg-slate-950/40 rounded p-1.5">
+          <div class="text-[10px] text-slate-500 uppercase">High Score</div>
+          <div id="high-score" class="font-bold text-slate-300">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-2">
+      <div class="flex items-center justify-between px-1">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">
+          Current Room <span id="plays-needed" class="normal-case font-normal text-slate-500 ml-2">(3 plays to clear room)</span>
+        </h2>
+        <button id="btn-flee" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 btn-press transition disabled:opacity-30 disabled:pointer-events-none">
+          🏃 Run Away (Flee Room)
+        </button>
+      </div>
+
+      <div id="room-container" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 min-h-[160px]">
+      </div>
+    </div>
+
+    <div id="status-banner" class="text-center text-xs font-medium text-slate-400 py-1 px-3 bg-slate-900/60 border border-slate-800/80 rounded-lg min-h-[32px] flex items-center justify-center">
+      Select a card from the room to make your move.
+    </div>
+  </main>
+
+  <div id="modal-overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4">
+      <div id="modal-icon" class="text-5xl">🏆</div>
+      <h2 id="modal-title" class="text-2xl font-extrabold text-amber-500">Dungeon Cleared!</h2>
+      <p id="modal-msg" class="text-sm text-slate-300 leading-relaxed"></p>
+      <div class="bg-slate-950/80 rounded-xl p-3 border border-slate-800 text-xs space-y-1">
+        <div class="flex justify-between text-slate-400"><span>Final HP:</span><span id="final-hp" class="font-bold text-slate-200">20</span></div>
+        <div class="flex justify-between text-slate-400"><span>Cards Left in Deck:</span><span id="final-deck" class="font-bold text-slate-200">0</span></div>
+        <div class="flex justify-between text-slate-400"><span>Final Score:</span><span id="final-score" class="font-bold text-amber-400">20</span></div>
+      </div>
+      <button id="btn-modal-restart" class="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold btn-press transition shadow-lg shadow-amber-500/20">
+        Play Again
+      </button>
+    </div>
+  </div>
+
+  <script>
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+      }
+      playTone(freq, type, duration, startVol = 0.1, endVol = 0) {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(startVol, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(Math.max(endVol, 0.0001), this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch(e) {}
+      }
+      playPotion() {
+        this.init();
+        if (!this.enabled) return;
+        this.playTone(300, 'sine', 0.1, 0.1);
+        setTimeout(() => this.playTone(450, 'sine', 0.15, 0.1), 80);
+      }
+      playWeapon() {
+        this.init();
+        if (!this.enabled) return;
+        this.playTone(180, 'triangle', 0.1, 0.15);
+        setTimeout(() => this.playTone(240, 'triangle', 0.2, 0.15), 60);
+      }
+      playFight() {
+        this.init();
+        if (!this.enabled) return;
+        this.playTone(120, 'sawtooth', 0.15, 0.2);
+        setTimeout(() => this.playTone(80, 'sawtooth', 0.2, 0.2), 80);
+      }
+      playFlee() {
+        this.init();
+        if (!this.enabled) return;
+        this.playTone(200, 'sine', 0.1, 0.1);
+        setTimeout(() => this.playTone(150, 'sine', 0.15, 0.1), 70);
+      }
+      playWin() {
+        this.init();
+        if (!this.enabled) return;
+        [261, 329, 392, 523].forEach((f, i) => {
+          setTimeout(() => this.playTone(f, 'triangle', 0.25, 0.15), i * 100);
+        });
+      }
+      playLose() {
+        this.init();
+        if (!this.enabled) return;
+        [200, 160, 130, 90].forEach((f, i) => {
+          setTimeout(() => this.playTone(f, 'sawtooth', 0.3, 0.2), i * 120);
+        });
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    const SUITS = {
+      CLUBS: { symbol: '♣', color: 'text-slate-300', bg: 'bg-slate-900', border: 'border-slate-700', type: 'monster', name: 'Monster' },
+      SPADES: { symbol: '♠', color: 'text-slate-300', bg: 'bg-slate-900', border: 'border-slate-700', type: 'monster', name: 'Monster' },
+      DIAMONDS: { symbol: '♦', color: 'text-amber-400', bg: 'bg-amber-950/30', border: 'border-amber-700/50', type: 'weapon', name: 'Weapon' },
+      HEARTS: { symbol: '♥', color: 'text-red-400', bg: 'bg-red-950/30', border: 'border-red-700/50', type: 'potion', name: 'Health Potion' }
+    };
+
+    let deck = [];
+    let room = [];
+    let hp = 20;
+    const maxHp = 20;
+    let equippedWeapon = null; 
+    let canFlee = true;
+    let cardsPlayedThisRoom = 0;
+    let totalSlain = 0;
+    let isGameOver = false;
+    let usedPotionInRoom = false;
+
+    function buildDeck() {
+      const suits = ['CLUBS', 'SPADES', 'DIAMONDS', 'HEARTS'];
+      const cards = [];
+      suits.forEach(suitKey => {
+        for (let val = 2; val <= 14; val++) {
+          if (suitKey === 'HEARTS' && val > 10) continue;
+          cards.push({ suit: suitKey, value: val, id: `${suitKey}-${val}-${Math.random().toString(36).substr(2, 5)}` });
+        }
+      });
+      return shuffle(cards);
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function getCardName(card) {
+      const valMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+      const valStr = valMap[card.value] || card.value.toString();
+      return `${valStr}${SUITS[card.suit].symbol}`;
+    }
+
+    function initGame() {
+      deck = buildDeck();
+      room = [];
+      hp = 20;
+      equippedWeapon = null;
+      canFlee = true;
+      cardsPlayedThisRoom = 0;
+      totalSlain = 0;
+      isGameOver = false;
+      usedPotionInRoom = false;
+
+      fillRoom();
+      updateUI();
+      setStatus("Game started. Select a card to begin your journey.");
+    }
+
+    function fillRoom() {
+      while (room.length < 4 && deck.length > 0) {
+        room.push(deck.pop());
+      }
+      cardsPlayedThisRoom = 0;
+      usedPotionInRoom = false;
+    }
+
+    function handleCardClick(index) {
+      if (isGameOver) return;
+      sound.init();
+
+      const card = room[index];
+      const suitInfo = SUITS[card.suit];
+
+      if (suitInfo.type === 'potion') {
+        if (usedPotionInRoom) {
+          setStatus("⚠️ You can only use one potion per room! Secondary potions are wasted.");
+        } else {
+          usedPotionInRoom = true;
+        }
+        const healAmt = card.value;
+        const prevHp = hp;
+        hp = Math.min(maxHp, hp + healAmt);
+        const actualHeal = hp - prevHp;
+        sound.playPotion();
+        setStatus(`🧪 Drank ${getCardName(card)} potion. Restored ${actualHeal} HP.`);
+      } 
+      else if (suitInfo.type === 'weapon') {
+        equippedWeapon = { value: card.value, lastSlain: null, cardName: getCardName(card) };
+        sound.playWeapon();
+        setStatus(`⚔️ Equipped weapon ${getCardName(card)} (Power: ${card.value}).`);
+      } 
+      else if (suitInfo.type === 'monster') {
+        let damageTaken = 0;
+        const monsterPower = card.value;
+
+        if (equippedWeapon) {
+          if (equippedWeapon.lastSlain !== null && monsterPower >= equippedWeapon.lastSlain) {
+            damageTaken = monsterPower;
+            hp -= damageTaken;
+            sound.playFight();
+            setStatus(`💥 ${getCardName(card)} (${monsterPower}) exceeds weapon durability limit (${equippedWeapon.lastSlain})! Took full ${damageTaken} damage!`);
+          } else {
+            const rawDamage = monsterPower - equippedWeapon.value;
+            damageTaken = Math.max(0, rawDamage);
+            hp -= damageTaken;
+            equippedWeapon.lastSlain = monsterPower;
+            sound.playFight();
+            setStatus(`⚔️ Fought ${getCardName(card)} with weapon. Took ${damageTaken} damage. Weapon durability updated.`);
+          }
+        } else {
+          damageTaken = monsterPower;
+          hp -= damageTaken;
+          sound.playFight();
+          setStatus(`👊 Fought ${getCardName(card)} barehanded! Took ${damageTaken} damage.`);
+        }
+
+        totalSlain++;
+      }
+
+      room.splice(index, 1);
+      cardsPlayedThisRoom++;
+
+      if (hp <= 0) {
+        hp = 0;
+        endGame(false);
+        return;
+      }
+
+      if (cardsPlayedThisRoom >= 3 || room.length === 0) {
+        canFlee = true;
+        fillRoom();
+        if (room.length === 0 && deck.length === 0) {
+          endGame(true);
+          return;
+        }
+      }
+
+      updateUI();
+    }
+
+    function fleeRoom() {
+      if (!canFlee || isGameOver || room.length < 4) return;
+      sound.init();
+
+      deck = room.concat(deck);
+      room = [];
+      canFlee = false;
+      fillRoom();
+      sound.playFlee();
+      setStatus("🏃 You fled the room! The cards were shuffled back to the bottom of the deck.");
+      updateUI();
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status-banner').innerText = msg;
+    }
+
+    function updateUI() {
+      document.getElementById('hp-text').innerText = `${hp} / ${maxHp}`;
+      const hpPercent = Math.max(0, (hp / maxHp) * 100);
+      document.getElementById('hp-bar').style.width = `${hpPercent}%`;
+
+      const weaponElem = document.getElementById('equipped-weapon');
+      const limitElem = document.getElementById('weapon-limit');
+      if (equippedWeapon) {
+        weaponElem.innerText = `${equippedWeapon.cardName} (${equippedWeapon.value})`;
+        limitElem.innerText = equippedWeapon.lastSlain !== null ? `Must be < ${equippedWeapon.lastSlain}` : 'Full Durability';
+        limitElem.className = 'text-sm font-bold text-amber-400';
+      } else {
+        weaponElem.innerText = 'Barehanded';
+        limitElem.innerText = 'Full Damage';
+        limitElem.className = 'text-sm font-bold text-slate-400';
+      }
+
+      document.getElementById('deck-count').innerText = deck.length;
+      document.getElementById('slain-count').innerText = totalSlain;
+
+      const savedHighScore = localStorage.getItem('scoundrel_high_score') || 0;
+      document.getElementById('high-score').innerText = savedHighScore;
+
+      const fleeBtn = document.getElementById('btn-flee');
+      fleeBtn.disabled = !canFlee || room.length < 4;
+
+      const playsNeeded = Math.max(0, 3 - cardsPlayedThisRoom);
+      document.getElementById('plays-needed').innerText = playsNeeded > 0 ? `(${playsNeeded} play${playsNeeded > 1 ? 's' : ''} to clear room)` : '(Room ready to fill)';
+
+      const roomContainer = document.getElementById('room-container');
+      roomContainer.innerHTML = '';
+
+      room.forEach((card, index) => {
+        const suitInfo = SUITS[card.suit];
+        const valMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+        const valDisplay = valMap[card.value] || card.value;
+
+        const cardEl = document.createElement('button');
+        cardEl.className = `card-transition btn-press relative flex flex-col justify-between p-3 rounded-xl border-2 ${suitInfo.bg} ${suitInfo.border} shadow-lg hover:border-amber-500/80 focus:outline-none min-h-[140px] text-left`;
+        
+        let actionHint = '';
+        if (suitInfo.type === 'monster') {
+          if (equippedWeapon) {
+            if (equippedWeapon.lastSlain !== null && card.value >= equippedWeapon.lastSlain) {
+              actionHint = `<span class="text-[10px] text-red-400 font-bold">Takes ${card.value} HP!</span>`;
+            } else {
+              const dmg = Math.max(0, card.value - equippedWeapon.value);
+              actionHint = `<span class="text-[10px] text-amber-300 font-bold">Takes ${dmg} HP</span>`;
+            }
+          } else {
+            actionHint = `<span class="text-[10px] text-red-400 font-bold">Takes ${card.value} HP</span>`;
+          }
+        } else if (suitInfo.type === 'potion') {
+          actionHint = usedPotionInRoom 
+            ? `<span class="text-[10px] text-slate-500 line-through">Wasted</span>` 
+            : `<span class="text-[10px] text-emerald-400 font-bold">Heal (+${card.value} HP)</span>`;
+        } else if (suitInfo.type === 'weapon') {
+          actionHint = `<span class="text-[10px] text-amber-400 font-bold">Equip (${card.value})</span>`;
+        }
+
+        cardEl.innerHTML = `
+          <div class="flex justify-between items-start w-full">
+            <span class="text-lg font-black ${suitInfo.color}">${valDisplay}</span>
+            <span class="text-xl ${suitInfo.color}">${suitInfo.symbol}</span>
+          </div>
+          <div class="my-auto text-center">
+            <span class="text-3xl ${suitInfo.color}">${suitInfo.symbol}</span>
+          </div>
+          <div class="w-full text-center">
+            ${actionHint}
+          </div>
+        `;
+
+        cardEl.onclick = () => handleCardClick(index);
+        roomContainer.appendChild(cardEl);
+      });
+    }
+
+    function endGame(won) {
+      isGameOver = true;
+      const modal = document.getElementById('modal-overlay');
+      const title = document.getElementById('modal-title');
+      const msg = document.getElementById('modal-msg');
+      const icon = document.getElementById('modal-icon');
+
+      const finalHp = hp;
+      const cardsLeft = deck.length;
+      const score = won ? (finalHp + (finalHp === maxHp ? 10 : 0)) : (totalSlain - cardsLeft);
+
+      const savedHighScore = parseInt(localStorage.getItem('scoundrel_high_score') || '0', 10);
+      if (score > savedHighScore) {
+        localStorage.setItem('scoundrel_high_score', score);
+      }
+
+      document.getElementById('final-hp').innerText = finalHp;
+      document.getElementById('final-deck').innerText = cardsLeft;
+      document.getElementById('final-score').innerText = score;
+
+      if (won) {
+        sound.playWin();
+        icon.innerText = '🏆';
+        title.innerText = 'Dungeon Cleared!';
+        title.className = 'text-2xl font-extrabold text-amber-400';
+        msg.innerText = 'You successfully navigated the dungeon and defeated the darkness!';
+      } else {
+        sound.playLose();
+        icon.innerText = '💀';
+        title.innerText = 'You Perished...';
+        title.className = 'text-2xl font-extrabold text-red-500';
+        msg.innerText = 'The dungeon overwhelmed you. Better luck next time, Scoundrel.';
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    document.getElementById('btn-flee').onclick = fleeRoom;
+    document.getElementById('btn-restart').onclick = initGame;
+    document.getElementById('btn-modal-restart').onclick = () => {
+      document.getElementById('modal-overlay').classList.add('hidden');
+      initGame();
+    };
+
+    const soundBtn = document.getElementById('btn-sound');
+    const iconOn = document.getElementById('icon-sound-on');
+    const iconOff = document.getElementById('icon-sound-off');
+
+    soundBtn.onclick = () => {
+      sound.enabled = !sound.enabled;
+      if (sound.enabled) {
+        iconOn.classList.remove('hidden');
+        iconOff.classList.add('hidden');
+      } else {
+        iconOn.classList.add('hidden');
+        iconOff.classList.remove('hidden');
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        const swCode = `
+          self.addEventListener('install', e => self.skipWaiting());
+          self.addEventListener('activate', e => self.clients.claim());
+          self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response('Offline'))));
+        `;
+        const blob = new Blob([swCode], { type: 'text/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+        navigator.serviceWorker.register(swUrl).catch(err => console.log('SW reg error:', err));
+      });
+    }
+
+    initGame();
+  </script>
+</body>
+</html>
